@@ -1,36 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+That sounds like a clever way to collect data! Using a "Keep" clone is perfect because it encourages natural, varied typing patterns (short bursts, long sentences, lists), which is exactly what you need for high-quality Keyboard Dynamics (keystroke biometrics) data.
 
-## Getting Started
+Here is a brief, professional description for your README.md, followed by the Next.js setup to get you moving.
 
-First, run the development server:
+📝 README Description
+Project Title: ChronosNotes
+An intelligent note-taking application designed for behavioral biometric data collection.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Overview ChronosNotes is a Google Keep-inspired web application built with Next.js 15+. While it serves as a fully functional note-taking tool, its primary purpose is to act as a data collection environment for Keyboard Dynamics Anomaly Detection.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app captures fine-grained typing patterns—including dwell time (how long a key is held) and flight time (the delay between keys)—to build a unique biometric profile for users. This data is used to train machine learning models to detect unauthorized access based on typing "rhythm" anomalies.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Core Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Framework: Next.js (App Router)
 
-## Learn More
+Styling: Tailwind CSS (for the Masonry/Grid layout)
 
-To learn more about Next.js, take a look at the following resources:
+Icons: Lucide React
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Data Collection: Custom React Hooks for keydown and keyup event listening.
