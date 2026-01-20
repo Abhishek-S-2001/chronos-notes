@@ -1,13 +1,17 @@
+"use client";
+
 import React, { useState } from 'react';
+import { v4 as uuidv4 } from "uuid";
 import { X, Save, Clock } from 'lucide-react'; // Ensure lucide-react is installed
 import { useKeystrokeLogger } from '../hooks/useKeystrokeLogger';
 
 interface CreateNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
+  username: string;
 }
 
-export const CreateNoteModal = ({ isOpen, onClose }: CreateNoteModalProps) => {
+export const CreateNoteModal = ({ isOpen, onClose, username }: CreateNoteModalProps) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   
@@ -19,14 +23,14 @@ export const CreateNoteModal = ({ isOpen, onClose }: CreateNoteModalProps) => {
   const handleSave = async () => {
     // This is where we will eventually send data to the backend
     const payload = {
-      sessionID: crypto.randomUUID(), // Generates a unique ID for this session
+      sessionID: uuidv4(), // Generates a unique ID for this session
+      username: username,
       noteTitle: title,
       keystrokeLog: keystrokeLog
     };
 
     try {
-      // 2. Send to our Next.js API
-      const response = await fetch('/api/save-metrics', {
+      const response = await fetch('http://127.0.0.1:8000/api/save-metrics', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

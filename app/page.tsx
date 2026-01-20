@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 
 import { CreateNoteModal } from "@/components/CreateNoteModal";
+import { UserSelector } from "@/components/UserSelector";
+import { ServerStatus } from "@/components/ServerStatus";
+
 
 // --- Components for Reusability ---
 
@@ -79,6 +82,7 @@ const RecentFolder = ({ label, code }: { label: string, code: string }) => (
 export default function Home() {
   const [foldersOpen, setFoldersOpen] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string>("");
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] font-sans text-gray-900">
@@ -98,9 +102,20 @@ export default function Home() {
             <ChevronDown size={14} className="ml-auto text-gray-400" />
           </div>
 
+          {/* User Selector */}
+          <UserSelector 
+            currentUser={currentUser} 
+            onUserSelect={setCurrentUser} 
+          />
+
           {/* Create Button */}
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              if (!currentUser) {
+                  alert("Please select a user first!");
+                  return;
+              }
+              setIsModalOpen(true)}}
             className="w-full bg-gray-900 text-white flex items-center justify-between px-4 py-3 rounded-xl mb-6 hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200">
             <div className="flex items-center gap-2">
               <div className="p-0.5 border border-white rounded-full"><Plus size={12} /></div>
@@ -139,6 +154,8 @@ export default function Home() {
         <div className="space-y-1">
           <SidebarItem icon={HelpCircle} label="Help" />
           <SidebarItem icon={Settings} label="Settings" />
+          {/*Status Check */}
+          <ServerStatus />
         </div>
       </aside>
 
@@ -208,7 +225,7 @@ export default function Home() {
             </div>
         </div>
       </main>
-      <CreateNoteModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreateNoteModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} username={currentUser} />
     </div>
   );
 }
