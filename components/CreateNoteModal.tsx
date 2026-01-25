@@ -4,14 +4,16 @@ import React, { useState } from 'react';
 import { v4 as uuidv4 } from "uuid";
 import { X, Save, Clock } from 'lucide-react'; // Ensure lucide-react is installed
 import { useKeystrokeLogger } from '../hooks/useKeystrokeLogger';
+import { platform } from 'os';
 
 interface CreateNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   username: string;
+  onSaveSuccess: (log: any[]) => void;
 }
 
-export const CreateNoteModal = ({ isOpen, onClose, username }: CreateNoteModalProps) => {
+export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: CreateNoteModalProps) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   
@@ -22,15 +24,22 @@ export const CreateNoteModal = ({ isOpen, onClose, username }: CreateNoteModalPr
 
   const handleSave = async () => {
     // This is where we will eventually send data to the backend
+    if (!title.trim() || !content.trim()) {
+      alert("Please enter both a title and some content.");
+      return;
+    }
+
     const payload = {
       sessionID: uuidv4(), // Generates a unique ID for this session
       username: username,
-      noteTitle: title,
-      keystrokeLog: keystrokeLog
+      title: title,
+      content: content,
+      keystrokeLog: keystrokeLog,
+      platform: 'Web'
     };
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/save-metrics', {
+      const response = await fetch('http://127.0.0.1:8000/api/notes/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -39,6 +48,7 @@ export const CreateNoteModal = ({ isOpen, onClose, username }: CreateNoteModalPr
       });
 
       if (response.ok) {
+        onSaveSuccess(keystrokeLog);
         console.log("✅ Data saved to dataset.json");
       } else {
         console.error("❌ Failed to save data");

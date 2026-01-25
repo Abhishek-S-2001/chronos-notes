@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { User, Plus, Check } from 'lucide-react';
+import { User, Check } from 'lucide-react';
 
 interface UserSelectorProps {
   currentUser: string;
@@ -12,7 +12,7 @@ export const UserSelector = ({ currentUser, onUserSelect }: UserSelectorProps) =
   const [isAdding, setIsAdding] = useState(false);
   const [newUser, setNewUser] = useState("");
 
-  // Fetch users when component mounts
+  // 1. Only fetch the LIST of users here
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -20,17 +20,26 @@ export const UserSelector = ({ currentUser, onUserSelect }: UserSelectorProps) =
   const fetchUsers = async () => {
     try {
       const res = await fetch('http://127.0.0.1:8000/api/users');
-      const data = await res.json();
-      setUsers(data.users || []);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      }
     } catch (e) {
       console.error("Failed to fetch users", e);
     }
   };
 
-  const handleAddUser = () => {
-    if (newUser.trim()) {
-      onUserSelect(newUser);
-      setUsers(prev => [...prev, newUser]); // Optimistic update
+const handleAddUser = () => {
+    const trimmedName = newUser.trim();
+    
+    if (trimmedName) {
+      onUserSelect(trimmedName);
+      
+      // FIX: Only add to the dropdown list if it's NOT already there
+      if (!users.includes(trimmedName)) {
+          setUsers(prev => [...prev, trimmedName]);
+      }
+      
       setNewUser("");
       setIsAdding(false);
     }

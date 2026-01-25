@@ -1,6 +1,6 @@
 "use client"; // Required for interactivity later
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Search, Archive, Settings, HelpCircle, 
   Plus, ChevronDown, ChevronRight, Folder, 
@@ -10,6 +10,8 @@ import {
 import { CreateNoteModal } from "@/components/CreateNoteModal";
 import { UserSelector } from "@/components/UserSelector";
 import { ServerStatus } from "@/components/ServerStatus";
+import { KeystrokeChart } from "@/components/KeystrokeChart";
+import { RiskDashboard } from "@/components/RiskDashboard";
 
 
 // --- Components for Reusability ---
@@ -37,27 +39,35 @@ const NoteCard = ({ color, title, time, content, type }: any) => {
     purple: "bg-purple-100 border-purple-200",
     orange: "bg-orange-100 border-orange-200",
     yellow: "bg-yellow-100 border-yellow-200",
-    white: "bg-white border-gray-200"
+    white: "bg-white border-gray-200",
+    blue: "bg-blue-100 border-blue-200",
+    green: "bg-emerald-100 border-emerald-200"
   };
 
+  // Fallback if color is undefined
+  const headerClass = colorMap[color] || colorMap['white'];
+
   return (
-    <div className={`p-1 rounded-2xl border ${type === 'white' ? 'bg-white' : 'bg-white'} shadow-sm hover:shadow-md transition-shadow cursor-pointer`}>
+    <div className={`p-1 rounded-2xl border ${type === 'white' ? 'bg-white' : 'bg-white'} shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer h-full flex flex-col`}>
       {/* Header Section of the Card */}
-      <div className={`${colorMap[color]} px-4 py-3 rounded-t-xl flex justify-between items-center mb-2`}>
-        <span className="font-bold text-gray-800 text-sm">{title}</span>
-        <span className="text-xs text-gray-500 font-medium">{time}</span>
+      <div className={`${headerClass} px-4 py-3 rounded-t-xl flex justify-between items-center mb-2`}>
+        <span className="font-bold text-gray-800 text-sm truncate pr-2">{title}</span>
+        <span className="text-xs text-gray-500 font-medium whitespace-nowrap">{time}</span>
       </div>
       
       {/* Content Section */}
-      <div className="px-4 pb-4">
-        <div className="space-y-2">
-           {content.map((line: string, i: number) => (
+      <div className="px-4 pb-4 flex-1 flex flex-col justify-between">
+        <div className="space-y-2 mb-4">
+           {/* Handle content whether it's an array or a raw string */}
+           {Array.isArray(content) ? content.map((line: string, i: number) => (
              <p key={i} className="text-xs text-gray-600 line-clamp-2">{line}</p>
-           ))}
+           )) : (
+             <p className="text-xs text-gray-600 line-clamp-4 whitespace-pre-wrap">{content}</p>
+           )}
         </div>
         
         {/* Footer Action */}
-        <div className="mt-4 flex justify-end">
+        <div className="flex justify-end">
           <div className="p-1.5 rounded-full bg-lime-400 text-white shadow-sm cursor-pointer hover:bg-lime-500">
              <FileText size={12} fill="white" /> 
           </div>
@@ -83,6 +93,45 @@ export default function Home() {
   const [foldersOpen, setFoldersOpen] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<string>("");
+  
+  // State for Data
+  const [biometricData, setBiometricData] = useState<any>(null);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // --- Unified Fetch Function ---
+  const fetchData = async () => {
+    if (!currentUser) return;
+    setLoading(true);
+
+    try {
+      // 1. Fetch Biometrics
+      const bioRes = await fetch(`http://127.0.0.1:8000/api/stats/${currentUser}`);
+      if (bioRes.ok) setBiometricData(await bioRes.json());
+      else setBiometricData(null); // Clear if failed
+
+      // 2. Fetch Notes
+      const notesRes = await fetch(`http://127.0.0.1:8000/api/notes/list/${currentUser}`);
+      if (notesRes.ok) {
+        const data = await notesRes.json();
+        setNotes(data.notes || []);
+      } else {
+        setNotes([]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch data", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch when user changes
+  useEffect(() => {
+    fetchData();
+  }, [currentUser]);
+
+  // Colors to cycle through for the notes
+  const noteColors = ['purple', 'orange', 'yellow', 'blue', 'green', 'white'];
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] font-sans text-gray-900">
@@ -96,8 +145,8 @@ export default function Home() {
                 <Moon size={16} className="text-white fill-current" />
             </div>
             <div>
-              <h1 className="font-bold text-sm tracking-wide">Syncscribe</h1>
-              <span className="text-xs text-gray-400">Meet Desai</span>
+              <h1 className="font-bold text-sm tracking-wide">Chronos Notes</h1>
+              <span className="text-xs text-gray-400">BIOMETRIC VAULT</span>
             </div>
             <ChevronDown size={14} className="ml-auto text-gray-400" />
           </div>
@@ -116,19 +165,19 @@ export default function Home() {
                   return;
               }
               setIsModalOpen(true)}}
-            className="w-full bg-gray-900 text-white flex items-center justify-between px-4 py-3 rounded-xl mb-6 hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200">
+            className="w-full bg-gray-900 text-white flex items-center justify-between px-4 py-3 rounded-xl mb-6 hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200 group">
             <div className="flex items-center gap-2">
-              <div className="p-0.5 border border-white rounded-full"><Plus size={12} /></div>
+              <div className="p-0.5 border border-white rounded-full group-active:scale-90 transition-transform"><Plus size={12} /></div>
               <span className="text-sm font-semibold">Create Note</span>
             </div>
             <span className="text-xs bg-gray-700 px-1.5 py-0.5 rounded text-gray-300">N</span>
           </button>
 
-          {/* Navigation */}
+          {/* Navigation
           <nav className="space-y-1 mb-6">
             <SidebarItem icon={Search} label="Search" shortcut="S" />
             <SidebarItem icon={Archive} label="Archives" shortcut="R" />
-          </nav>
+          </nav> */}
 
           {/* Folders Section */}
           <div>
@@ -142,7 +191,7 @@ export default function Home() {
             
             {foldersOpen && (
               <div className="mt-2 space-y-1 pl-2">
-                {['Bucket List', 'Finances', 'Travel Plans', 'Shopping', 'Personal', 'Work', 'Projects'].map((f) => (
+                {['Bucket List', 'Finances', 'Personal', 'Work', 'Projects'].map((f) => (
                   <FolderItem key={f} label={f} />
                 ))}
               </div>
@@ -163,7 +212,14 @@ export default function Home() {
       {/* --- Main Content (Right Panel) --- */}
       <main className="flex-1 p-8 overflow-y-auto">
         <header className="flex justify-between items-end mb-8">
-          <h2 className="text-2xl font-bold text-gray-800">My Notes</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">
+                {currentUser ? "My Notes" : "Dashboard"}
+            </h2>
+             <p className="text-gray-400 mt-1 text-sm font-medium">
+              {currentUser ? `Analyzing behavior for ${currentUser}` : "Select a user to begin analysis."}
+            </p>
+          </div>
           
           {/* Time Filters */}
           <div className="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex text-xs font-medium text-gray-500">
@@ -173,34 +229,64 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Notes Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          <NoteCard 
-            color="purple" 
-            title="Reminders" 
-            time="8:00 PM"
-            content={["Dentist appointment on Tuesday", "Submit report by end of the day", "Send email to boss"]}
-          />
-          <NoteCard 
-            color="orange" 
-            title="Reminders" 
-            time="8:00 PM"
-            content={["Dentist appointment on Tuesday", "Submit report by end of the day", "Send email to boss"]}
-          />
-           <NoteCard 
-            color="yellow" 
-            title="Random Thoughts" 
-            time="9:45 PM"
-            content={['"Success is a journey, not a des..."', '"Try a new recipe this weekend!"', '"Don\'t forget to water the plants."']}
-          />
-           <NoteCard 
-            color="white" 
-            title="Books to Read" 
-            time=""
-            content={['The Power of Habit by...', 'Atomic Habits by Jam...', 'The Alchemist by Pa...']}
-            type="white"
-          />
-        </div>
+        {currentUser && (
+          <div className="animate-in fade-in slide-in-from-top-2 duration-500 mb-8">
+            <RiskDashboard />
+          </div>
+        )}
+        
+        {currentUser && (
+            <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="w-1 h-6 bg-gray-800 rounded-full"></div>
+                    <h3 className="text-lg font-bold text-gray-800">Biometric Signature</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Left: Dwell Time */}
+                    <KeystrokeChart 
+                        title="Dwell Time (Key Hold Duration)" 
+                        data={biometricData?.dwell_data} 
+                        color="blue"
+                    />
+                    
+                    {/* Right: Flight Time */}
+                    <KeystrokeChart 
+                        title="Flight Time (Latency Between Keys)" 
+                        data={biometricData?.flight_data} 
+                        color="green"
+                    />
+                </div>
+            </div>
+        )}
+
+        {/* Notes Grid - Now Dynamic */}
+        {loading ? (
+             <div className="h-48 flex items-center justify-center text-gray-400 animate-pulse text-sm">
+                Fetching secure notes...
+             </div>
+        ) : notes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {notes.map((note, index) => (
+                <NoteCard 
+                  key={note.id}
+                  // Cycle through colors based on index
+                  color={noteColors[index % noteColors.length]} 
+                  title={note.title} 
+                  time={new Date(note.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  content={note.content} // Component now handles string or array
+                />
+              ))}
+            </div>
+        ) : currentUser ? (
+            <div className="mb-12 p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center text-gray-400 text-sm">
+                No notes found for {currentUser}. Create one to start analyzing keystrokes!
+            </div>
+        ) : (
+            <div className="mb-12 p-8 bg-gray-50 rounded-2xl text-center text-gray-400 text-sm">
+                Please select a user from the sidebar to view notes.
+            </div>
+        )}
 
         {/* Recent Folders Section */}
         <div className="mb-8">
@@ -213,19 +299,29 @@ export default function Home() {
                 </div>
             </header>
             
-            <div className="flex gap-8 items-center">
+            <div className="flex gap-8 items-center overflow-x-auto pb-4">
                 <RecentFolder label="Bucket List" code="BL" />
                 <RecentFolder label="Finances" code="Fi" />
                 <RecentFolder label="Travel Plans" code="TP" />
                 <RecentFolder label="Shopping" code="Sh" />
                 <RecentFolder label="Personal" code="Pe" />
-                <button className="w-8 h-8 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center hover:bg-gray-50">
+                <button className="w-12 h-12 flex-shrink-0 rounded-full bg-white shadow-sm border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors">
                     <ChevronRight size={16} className="text-gray-400"/>
                 </button>
             </div>
         </div>
       </main>
-      <CreateNoteModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} username={currentUser} />
+
+      {/* Modal - Updates Data on Success */}
+      <CreateNoteModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        username={currentUser} 
+        onSaveSuccess={() => {
+          // Wait 200ms for DB write, then refresh dashboard
+          setTimeout(fetchData, 200);
+        }}
+      />
     </div>
   );
 }
