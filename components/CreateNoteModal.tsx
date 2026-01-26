@@ -2,40 +2,43 @@
 
 import React, { useState } from 'react';
 import { v4 as uuidv4 } from "uuid";
-import { X, Save, Clock } from 'lucide-react'; // Ensure lucide-react is installed
+import { X, Save, Clock, Activity } from 'lucide-react'; 
 import { useKeystrokeLogger } from '../hooks/useKeystrokeLogger';
-import { platform } from 'os';
 
 interface CreateNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   username: string;
-  onSaveSuccess: (log: any[]) => void;
+  onSaveSuccess: () => void;
 }
 
 export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: CreateNoteModalProps) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   
-  // Connect our custom logger hook
-  const { keystrokeLog, handleKeyDown, handleKeyUp, clearLog } = useKeystrokeLogger();
+  // FIX 1: Destructure 'biometrics' (New Name), not 'keystrokeLog'
+  const { biometrics, handleKeyDown, handleKeyUp, clearLog } = useKeystrokeLogger();
 
   if (!isOpen) return null;
 
   const handleSave = async () => {
-    // This is where we will eventually send data to the backend
+    // 1. Basic Validation
     if (!title.trim() || !content.trim()) {
       alert("Please enter both a title and some content.");
       return;
     }
 
+    // 2. Prepare Payload
+    // This MUST match the new 'NoteCreate' Pydantic model in app/schemas.py
     const payload = {
-      sessionID: uuidv4(), // Generates a unique ID for this session
+      sessionID: uuidv4(),
       username: username,
-      title: title,
+      title: title, 
       content: content,
-      keystrokeLog: keystrokeLog,
-      platform: 'Web'
+      platform: 'Web',
+      
+      // FIX 2: Send 'biometrics' field (The hook already formats it correctly)
+      biometrics: biometrics 
     };
 
     try {
@@ -48,35 +51,35 @@ export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: Cr
       });
 
       if (response.ok) {
-        onSaveSuccess(keystrokeLog);
-        console.log("✅ Data saved to dataset.json");
+        console.log("✅ Encrypted Note Saved");
+        onSaveSuccess(); // Trigger refresh on parent
+        
+        // Clear forms and close
+        setTitle('');
+        setContent('');
+        clearLog();
+        onClose();
       } else {
-        console.error("❌ Failed to save data");
+        const errorData = await response.json();
+        console.error("❌ Save Error:", errorData);
+        alert(`Save failed: ${JSON.stringify(errorData.detail)}`);
       }
 
     } catch (error) {
-      console.error("Error submitting data:", error);
+      console.error("Network Error:", error);
+      alert("Network error. Is the backend running?");
     }
-
-    console.log("📝 Note Content:", { title, content });
-    console.log("🧠 Biometric Data Captured:", keystrokeLog);
-    
-    // Clear forms and close
-    setTitle('');
-    setContent('');
-    clearLog();
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 transition-all animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Modal Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gray-50">
           <div className="flex items-center gap-2">
             <div className="w-2 h-6 bg-lime-400 rounded-full"></div>
-            <h3 className="font-bold text-gray-800 text-lg">New Session</h3>
+            <h3 className="font-bold text-gray-800 text-lg">Secure Session</h3>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
             <X size={20} />
@@ -87,7 +90,7 @@ export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: Cr
         <div className="p-6 space-y-4 overflow-y-auto">
           <input
             type="text"
-            placeholder="Title (e.g., 'Morning Reflection')"
+            placeholder="Title (e.g., 'Confidential Report')"
             className="w-full text-xl font-bold text-gray-800 placeholder:text-gray-300 outline-none bg-transparent"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -96,11 +99,11 @@ export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: Cr
           <div className="w-full h-px bg-gray-100"></div>
 
           <textarea
-            placeholder="Start typing freely here. The system is learning your pattern..."
+            placeholder="Type here. Your keystroke timings are being analyzed for anomaly detection..."
             className="w-full h-64 resize-none text-gray-600 placeholder:text-gray-300 outline-none leading-relaxed text-lg"
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            // Attach the event listeners here
+            // Attach the Privacy-First Loggers
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
           />
@@ -108,9 +111,18 @@ export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: Cr
 
         {/* Footer with Stats */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-          <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
-            <Clock size={14} />
-            <span>Keystrokes: {keystrokeLog.length}</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
+                <Clock size={14} />
+                {/* FIX 3: Use 'biometrics.length' */}
+                <span>Events: {biometrics.length}</span>
+            </div>
+            {biometrics.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-lime-600 font-bold bg-lime-100 px-2 py-0.5 rounded-md animate-pulse">
+                    <Activity size={12} />
+                    <span>Recording Physics</span>
+                </div>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -125,7 +137,7 @@ export const CreateNoteModal = ({ isOpen, onClose, username, onSaveSuccess }: Cr
               className="px-6 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-black shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
             >
               <Save size={16} />
-              Save Note
+              Save Securely
             </button>
           </div>
         </div>

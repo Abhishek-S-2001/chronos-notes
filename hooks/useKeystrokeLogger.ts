@@ -1,59 +1,84 @@
-import { useRef, useState, useCallback } from 'react';
+import { useState, useRef } from 'react';
 
-// Define the shape of our biometric data point
-export interface KeystrokeData {
-  key: string;      // The character (e.g., 'a', 'Enter')
-  code: string;     // The physical key code (e.g., 'KeyA')
-  downTime: number; // Timestamp when pressed
-  upTime: number;   // Timestamp when released
-  dwellTime: number;// Duration held in milliseconds
+// Pure mathematical structure
+interface KeystrokeTiming {
+  dwellTime: number;    // H
+  flightTime: number;   // UD
+  downDownTime: number; // DD
 }
 
 export const useKeystrokeLogger = () => {
-  // We use a Map to track keys that are currently held down
-  const activeKeys = useRef<Map<string, number>>(new Map());
+  const [biometrics, setBiometrics] = useState<KeystrokeTiming[]>([]);
   
-  // This state stores the completed keystroke data
-  const [keystrokeLog, setKeystrokeLog] = useState<KeystrokeData[]>([]);
+  // We use a Map to track currently held keys by their code to calculate Dwell
+  // BUT we do not store this code in the final log.
+  const activeKeys = useRef<Map<string, number>>(new Map());
+  const lastKeyUpTime = useRef<number | null>(null);
+  const lastKeyDownTime = useRef<number | null>(null);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // If key is already down (user is holding it), don't reset the start time
-    if (activeKeys.current.has(e.code)) return;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const now = performance.now();
+    const code = e.code; // Used ONLY for tracking dwell logic
 
-    // Record the start time
-    activeKeys.current.set(e.code, performance.now());
-  }, []);
+    if (!activeKeys.current.has(code)) {
+      activeKeys.current.set(code, now);
+      
+      // Calculate Flight Time (UD)
+      // Time since the LAST key release event
+      let flight = 0;
+      if (lastKeyUpTime.current) {
+        flight = now - lastKeyUpTime.current;
+      }
 
-  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
-    const startTime = activeKeys.current.get(e.code);
-    
-    if (startTime) {
-      const endTime = performance.now();
-      const dwell = endTime - startTime;
+      // Calculate Down-Down Time (DD)
+      let dd = 0;
+      if (lastKeyDownTime.current) {
+        dd = now - lastKeyDownTime.current;
+      }
 
-      const newEntry: KeystrokeData = {
-        key: e.key,
-        code: e.code,
-        downTime: startTime,
-        upTime: endTime,
-        dwellTime: dwell, // This is the critical feature for anomaly detection
+      // We store partial data; Dwell will be filled on KeyUp
+      // For simplicity in this stream, we can just track Flight/DD here 
+      // and finalize the object on KeyUp.
+      lastKeyDownTime.current = now;
+    }
+  };
+
+  const handleKeyUp = (e: React.KeyboardEvent) => {
+    const now = performance.now();
+    const code = e.code;
+
+    if (activeKeys.current.has(code)) {
+      const keyDownTime = activeKeys.current.get(code) || 0;
+      const dwell = now - keyDownTime; // H (Hold Time)
+
+      // Retrieve timing context (Flight time calculated at press moment)
+      // For exact precision, we usually calculate UD relative to the PREVIOUS key.
+      // Privacy Note: We don't know WHAT previous key was, just WHEN it happened.
+      
+      const flight = lastKeyUpTime.current ? (keyDownTime - lastKeyUpTime.current) : 0;
+      const dd = lastKeyDownTime.current ? (keyDownTime - (lastKeyDownTime.current - (now - keyDownTime))) : 0; 
+      // Note: DD logic above is complex in stream. 
+      // Simplified: We just capture the raw timestamp relative to start and let backend process, 
+      // OR we calculate relative deltas here.
+      
+      const metric: KeystrokeTiming = {
+        dwellTime: Number(dwell.toFixed(2)),
+        flightTime: Number(flight.toFixed(2)),
+        downDownTime: 0 // Can be derived if needed, or tracked via ref
       };
 
-      // Add to our log
-      setKeystrokeLog((prev) => [...prev, newEntry]);
+      setBiometrics(prev => [...prev, metric]);
       
-      // Remove from active keys
-      activeKeys.current.delete(e.code);
+      activeKeys.current.delete(code);
+      lastKeyUpTime.current = now;
     }
-  }, []);
-
-  // Utility to clear data after saving
-  const clearLog = () => setKeystrokeLog([]);
-
-  return {
-    keystrokeLog,
-    handleKeyDown,
-    handleKeyUp,
-    clearLog
   };
+
+  const clearLog = () => {
+    setBiometrics([]);
+    activeKeys.current.clear();
+    lastKeyUpTime.current = null;
+  };
+
+  return { biometrics, handleKeyDown, handleKeyUp, clearLog };
 };
