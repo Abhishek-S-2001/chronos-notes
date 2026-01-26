@@ -15,6 +15,7 @@ import { UserSelector } from "@/components/UserSelector";
 import { ServerStatus } from "@/components/ServerStatus";
 import { KeystrokeChart } from "@/components/KeystrokeChart";
 import { RiskDashboard } from "@/components/RiskDashboard";
+import { FingerprintRadar, RhythmScatter } from "@/components/BiometricVisuals"; // Import new components
 
 // --- REUSABLE COMPONENTS ---
 
@@ -265,24 +266,18 @@ export default function Home() {
         {currentUser && <div className="mb-8"><RiskDashboard /></div>}
         
         {currentUser && (
-             <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1 h-6 bg-gray-800 rounded-full"></div>
-                    <h3 className="text-lg font-bold text-gray-800">Biometric Signature</h3>
+                    <div className="w-1 h-6 bg-violet-500 rounded-full"></div>
+                    <h3 className="text-lg font-bold text-gray-800">Biometric DNA</h3>
                 </div>
+                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <KeystrokeChart 
-                        title="Dwell Rhythm (Hold Time)" 
-                        data={biometricData?.dwell_data} 
-                        isAnomaly={biometricData?.is_anomaly}
-                        score={biometricData?.anomaly_score}
-                    />
-                    <KeystrokeChart 
-                        title="Flight Rhythm (Typing Speed)" 
-                        data={biometricData?.flight_data} 
-                        isAnomaly={biometricData?.is_anomaly}
-                        score={biometricData?.anomaly_score}
-                    />
+                    {/* 1. The Agility Radar */}
+                    <FingerprintRadar data={biometricData?.radar_data} />
+                    
+                    {/* 2. The Rhythm Scatter Cloud */}
+                    <RhythmScatter data={biometricData?.scatter_data} />
                 </div>
             </div>
         )}

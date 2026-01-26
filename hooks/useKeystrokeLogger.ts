@@ -1,75 +1,72 @@
 import { useState, useRef } from 'react';
 
-// Pure mathematical structure
-interface KeystrokeTiming {
-  dwellTime: number;    // H
-  flightTime: number;   // UD
-  downDownTime: number; // DD
+// 1. The Biometric Mapping Logic (Runs in Browser)
+// We map specific keys to specific fingers to build a "Hand Profile"
+const getFinger = (code: string): string => {
+  const map: Record<string, string> = {
+    // Left Hand
+    KeyQ: 'L.Pinky', KeyA: 'L.Pinky', KeyZ: 'L.Pinky', 'Digit1': 'L.Pinky',
+    KeyW: 'L.Ring',  KeyS: 'L.Ring',  KeyX: 'L.Ring',  'Digit2': 'L.Ring',
+    KeyE: 'L.Mid',   KeyD: 'L.Mid',   KeyC: 'L.Mid',   'Digit3': 'L.Mid',
+    KeyR: 'L.Index', KeyF: 'L.Index', KeyV: 'L.Index', 'Digit4': 'L.Index',
+    KeyT: 'L.Index', KeyG: 'L.Index', KeyB: 'L.Index', 'Digit5': 'L.Index',
+    
+    // Right Hand
+    KeyY: 'R.Index', KeyH: 'R.Index', KeyN: 'R.Index', 'Digit6': 'R.Index',
+    KeyU: 'R.Index', KeyJ: 'R.Index', KeyM: 'R.Index', 'Digit7': 'R.Index',
+    KeyI: 'R.Mid',   KeyK: 'R.Mid',   Comma: 'R.Mid',  'Digit8': 'R.Mid',
+    KeyO: 'R.Ring',  KeyL: 'R.Ring',  Period: 'R.Ring','Digit9': 'R.Ring',
+    KeyP: 'R.Pinky', Quote: 'R.Pinky',Minus: 'R.Pinky','Digit0': 'R.Pinky',
+    
+    // Special
+    Space: 'Thumb', Enter: 'Pinky', Backspace: 'Pinky'
+  };
+  return map[code] || 'Other';
+};
+
+export interface BiometricEvent {
+  finger: string;
+  dwellTime: number;
+  flightTime: number;
+  timestamp: number;
 }
 
 export const useKeystrokeLogger = () => {
-  const [biometrics, setBiometrics] = useState<KeystrokeTiming[]>([]);
-  
-  // We use a Map to track currently held keys by their code to calculate Dwell
-  // BUT we do not store this code in the final log.
+  const [biometrics, setBiometrics] = useState<BiometricEvent[]>([]);
   const activeKeys = useRef<Map<string, number>>(new Map());
   const lastKeyUpTime = useRef<number | null>(null);
-  const lastKeyDownTime = useRef<number | null>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Ignore repeat events (holding down a key)
+    if (e.repeat) return;
+
     const now = performance.now();
-    const code = e.code; // Used ONLY for tracking dwell logic
-
-    if (!activeKeys.current.has(code)) {
-      activeKeys.current.set(code, now);
-      
-      // Calculate Flight Time (UD)
-      // Time since the LAST key release event
-      let flight = 0;
-      if (lastKeyUpTime.current) {
-        flight = now - lastKeyUpTime.current;
-      }
-
-      // Calculate Down-Down Time (DD)
-      let dd = 0;
-      if (lastKeyDownTime.current) {
-        dd = now - lastKeyDownTime.current;
-      }
-
-      // We store partial data; Dwell will be filled on KeyUp
-      // For simplicity in this stream, we can just track Flight/DD here 
-      // and finalize the object on KeyUp.
-      lastKeyDownTime.current = now;
-    }
+    activeKeys.current.set(e.code, now);
   };
 
   const handleKeyUp = (e: React.KeyboardEvent) => {
     const now = performance.now();
-    const code = e.code;
+    const startTime = activeKeys.current.get(e.code);
 
-    if (activeKeys.current.has(code)) {
-      const keyDownTime = activeKeys.current.get(code) || 0;
-      const dwell = now - keyDownTime; // H (Hold Time)
+    if (startTime) {
+      // 1. Calculate Physics
+      const dwell = now - startTime;
+      const flight = lastKeyUpTime.current ? (startTime - lastKeyUpTime.current) : 0;
+      
+      // 2. Map to Anatomy
+      const finger = getFinger(e.code);
 
-      // Retrieve timing context (Flight time calculated at press moment)
-      // For exact precision, we usually calculate UD relative to the PREVIOUS key.
-      // Privacy Note: We don't know WHAT previous key was, just WHEN it happened.
-      
-      const flight = lastKeyUpTime.current ? (keyDownTime - lastKeyUpTime.current) : 0;
-      const dd = lastKeyDownTime.current ? (keyDownTime - (lastKeyDownTime.current - (now - keyDownTime))) : 0; 
-      // Note: DD logic above is complex in stream. 
-      // Simplified: We just capture the raw timestamp relative to start and let backend process, 
-      // OR we calculate relative deltas here.
-      
-      const metric: KeystrokeTiming = {
-        dwellTime: Number(dwell.toFixed(2)),
-        flightTime: Number(flight.toFixed(2)),
-        downDownTime: 0 // Can be derived if needed, or tracked via ref
+      // 3. Record Feature Vector
+      const metric: BiometricEvent = {
+        finger: finger,
+        dwellTime: Number(dwell.toFixed(1)),
+        flightTime: Number(flight.toFixed(1)),
+        timestamp: Date.now()
       };
 
       setBiometrics(prev => [...prev, metric]);
       
-      activeKeys.current.delete(code);
+      activeKeys.current.delete(e.code);
       lastKeyUpTime.current = now;
     }
   };
