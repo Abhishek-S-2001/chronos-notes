@@ -4,8 +4,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Search, Archive, Settings, HelpCircle, 
   Plus, ChevronDown, ChevronRight, Folder, 
-  MoreHorizontal, FileText, ChevronLeft, Moon,
-  Trash2, Edit, Calendar
+  FileText, Moon, Trash2, Edit 
 } from "lucide-react";
 
 import { CreateNoteModal } from "@/components/CreateNoteModal";
@@ -13,8 +12,9 @@ import { EditNoteModal } from "@/components/EditNoteModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { UserSelector } from "@/components/UserSelector";
 import { ServerStatus } from "@/components/ServerStatus";
-import { KeystrokeChart } from "@/components/KeystrokeChart";
+// --- NEW IMPORTS ---
 import { RiskDashboard } from "@/components/RiskDashboard";
+import { FingerprintRadar, RhythmScatter } from "@/components/BiometricVisuals";
 
 // --- REUSABLE COMPONENTS ---
 
@@ -180,7 +180,6 @@ export default function Home() {
         if (res.ok) {
             setDeletingNote(null);
             // OPTIMIZATION: Only fetch notes! 
-            // We know deleting a note doesn't affect biometric history anymore.
             fetchData('notes'); 
         } else {
             alert("Failed to delete note");
@@ -262,27 +261,27 @@ export default function Home() {
             </div>
         </header>
 
-        {currentUser && <div className="mb-8"><RiskDashboard /></div>}
+        {/* 1. Risk Engine Dashboard (Sensitivity, Trust, Risk) */}
+        {currentUser && (
+            <RiskDashboard 
+                stats={biometricData} 
+                username={currentUser} 
+                onRefresh={() => fetchData('stats')} 
+            />
+        )}
         
+        {/* 2. Biometric DNA Visuals (Radar & Scatter) */}
         {currentUser && (
              <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1 h-6 bg-gray-800 rounded-full"></div>
-                    <h3 className="text-lg font-bold text-gray-800">Biometric Signature</h3>
+                    <div className="w-1 h-6 bg-violet-500 rounded-full"></div>
+                    <h3 className="text-lg font-bold text-gray-800">Biometric DNA</h3>
                 </div>
+                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <KeystrokeChart 
-                        title="Dwell Rhythm (Hold Time)" 
-                        data={biometricData?.dwell_data} 
-                        isAnomaly={biometricData?.is_anomaly}
-                        score={biometricData?.anomaly_score}
-                    />
-                    <KeystrokeChart 
-                        title="Flight Rhythm (Typing Speed)" 
-                        data={biometricData?.flight_data} 
-                        isAnomaly={biometricData?.is_anomaly}
-                        score={biometricData?.anomaly_score}
-                    />
+                    {/* The New Graphs */}
+                    <FingerprintRadar data={biometricData?.radar_data} />
+                    <RhythmScatter data={biometricData?.scatter_data} />
                 </div>
             </div>
         )}

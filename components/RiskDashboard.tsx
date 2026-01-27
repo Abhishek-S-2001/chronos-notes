@@ -1,175 +1,140 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line 
-} from 'recharts';
-import { calculateRisk, WEIGHTS } from '@/utils/riskMath';
-import { RefreshCw, ShieldAlert, Activity, Globe, Lock } from 'lucide-react';
+import { Shield, Activity, Settings2, Lock } from 'lucide-react';
 
-// Color Palette
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+interface RiskDashboardProps {
+  stats: any; // The full object from /api/stats/{user}
+  username: string;
+  onRefresh: () => void;
+}
 
-export const RiskDashboard = () => {
-  const [metrics, setMetrics] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+export const RiskDashboard = ({ stats, username, onRefresh }: RiskDashboardProps) => {
+  const [sensitivity, setSensitivity] = useState(5);
+  const [localRisk, setLocalRisk] = useState(0);
 
-  // Simulate "Real-time" updates
-  const refreshAnalysis = () => {
-    const data = calculateRisk();
-    setMetrics(data);
+  // Sync state when props change
+  useEffect(() => {
+    if (stats) {
+        setSensitivity(stats.sensitivity || 5);
+        setLocalRisk(stats.risk_score || 0);
+    }
+  }, [stats]);
+
+  const handleSliderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = parseInt(e.target.value);
+    setSensitivity(newVal);
     
-    // Add to history (keep last 10 points)
-    setHistory(prev => {
-      const newPoint = { time: new Date().toLocaleTimeString(), risk: data.totalScore };
-      const newHistory = [...prev, newPoint];
-      return newHistory.slice(-10); // Keep only last 10
-    });
+    // 1. Optimistic UI Update: Recalculate Risk R(t) locally
+    // Formula: Risk = Anomaly * (Sensitivity / 5)
+    if (stats) {
+        const multiplier = newVal / 5.0;
+        const newRisk = Math.min(100, (stats.raw_anomaly || 0) * multiplier);
+        setLocalRisk(Math.round(newRisk));
+    }
+
+    // 2. Debounced API Call
+    try {
+        await fetch(`http://127.0.0.1:8000/api/users/${username}/sensitivity`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sensitivity: newVal })
+        });
+        // We don't need to force refresh immediately, visual feedback is enough
+    } catch (e) { console.error(e); }
   };
 
-  // Initial load
-  useEffect(() => {
-    refreshAnalysis();
-    // Optional: Auto-refresh every 5 seconds to show "Live" nature
-    // const interval = setInterval(refreshAnalysis, 5000);
-    // return () => clearInterval(interval);
-  }, []);
+  if (!stats) return null;
 
-  if (!metrics) return null;
-
-  // Prepare Data for Charts
-  const contributionData = [
-    { name: "Auth (A)", value: WEIGHTS.w_a * metrics.scores.A, fill: '#3b82f6' },     // Blue
-    { name: "Context (CP)", value: WEIGHTS.w_cp * metrics.scores.CP, fill: '#10b981' }, // Green
-    { name: "Behavior (B)", value: WEIGHTS.w_b * metrics.scores.B, fill: '#f59e0b' },   // Orange
-    { name: "System (S)", value: WEIGHTS.w_s * metrics.scores.S, fill: '#6366f1' },     // Indigo
-  ];
-
-  const contextualData = [
-    { name: "IP Risk", value: WEIGHTS.mu_ip * metrics.scores.IP },
-    { name: "Geo Risk", value: WEIGHTS.mu_geo * metrics.scores.GEO },
-    { name: "Trust", value: WEIGHTS.mu_bt * metrics.scores.BT },
-  ];
+  // Visual Logic for Risk
+  const isCritical = localRisk > 70;
+  const isModerate = localRisk > 40;
+  const riskColor = isCritical ? 'bg-red-500' : isModerate ? 'bg-orange-400' : 'bg-emerald-500';
+  const riskLabel = isCritical ? 'CRITICAL' : isModerate ? 'MODERATE' : 'SECURE';
 
   return (
-    <div className="w-full bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/50 overflow-hidden mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       
-      {/* --- HEADER: The "Executive Summary" --- */}
-      <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+      {/* 1. Risk Score Card R(t) */}
+      <div className="bg-gray-900 text-white p-6 rounded-2xl shadow-xl flex flex-col justify-between relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-110"></div>
+        
         <div>
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <ShieldAlert className="text-gray-600" /> 
-            Risk Engine Analysis
-          </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            Real-time evaluation using Formula: <span className="font-mono bg-gray-200 px-1 rounded">R(t) = wₐA + wcpCP + wbB + wsS</span>
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-6">
-          <div className="text-right">
-             <div className="text-xs font-bold text-gray-400 uppercase">Trust Level</div>
-             <div className={`text-2xl font-black ${metrics.color}`}>
-               {metrics.label} ({(metrics.totalScore * 100).toFixed(1)}%)
-             </div>
-          </div>
-          <button 
-            onClick={refreshAnalysis}
-            className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
-          >
-            <RefreshCw size={20} className="text-gray-600" />
-          </button>
-        </div>
-      </div>
-
-      {/* --- BODY: The Visual Proof --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
-        
-        {/* 1. Factor Contribution (Bar Chart) */}
-        <div className="p-6">
-          <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-            <Lock size={14} /> Total Risk Breakdown
-          </h4>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={contributionData} layout="vertical">
-                <XAxis type="number" domain={[0, 0.4]} hide />
-                <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11}} />
-                <Tooltip cursor={{fill: 'transparent'}} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Shows weight * normalized_score for each factor
-          </p>
-        </div>
-
-        {/* 2. Contextual Deep Dive (Pie Chart) */}
-        <div className="p-6">
-          <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-            <Globe size={14} /> Contextual Risk (CP)
-          </h4>
-          <div className="h-48 relative">
-             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={contextualData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={60}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {contextualData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            {/* Center Label */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="text-xs font-bold text-gray-400">CP(t)</span>
+            <div className="flex items-center gap-2 mb-2 text-gray-400">
+                <Shield size={16} />
+                <span className="text-xs font-bold tracking-widest uppercase">Risk Score R(t)</span>
             </div>
-          </div>
-          <div className="flex justify-center gap-3 text-[10px] text-gray-500">
-             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#3b82f6]"></div> IP</span>
-             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#10b981]"></div> Geo</span>
-             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#f59e0b]"></div> Trust</span>
-          </div>
+            <div className="text-5xl font-bold tracking-tighter mb-1">
+                {localRisk}%
+            </div>
+            <div className={`inline-block px-3 py-1 rounded-lg text-[10px] font-bold ${riskColor} text-white transition-colors duration-500`}>
+                STATUS: {riskLabel}
+            </div>
         </div>
-
-        {/* 3. Continuous Auth (Line Chart) */}
-        <div className="p-6">
-          <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-            <Activity size={14} /> Risk Over Time
-          </h4>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={history}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="time" hide />
-                <YAxis domain={[0, 1]} tick={{fontSize: 10}} width={20} />
-                <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="risk" 
-                  stroke="#ef4444" 
-                  strokeWidth={2} 
-                  dot={{r: 2}}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-           <p className="text-[10px] text-gray-400 mt-2 text-center">
-            Simulates continuous re-evaluation (R(t))
-          </p>
+        
+        <div className="mt-6">
+            <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Anomaly Detection</span>
+                <span>{stats.raw_anomaly}% Deviation</span>
+            </div>
+            <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                <div 
+                    className={`h-full ${riskColor} transition-all duration-500 ease-out`} 
+                    style={{ width: `${localRisk}%` }}
+                ></div>
+            </div>
         </div>
-
       </div>
+
+      {/* 2. Sensitivity Controller S(t) */}
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
+        <div className="flex justify-between items-start mb-4">
+            <div>
+                <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                    <Settings2 size={18} className="text-gray-400"/>
+                    Sensitivity S(t)
+                </h4>
+                <p className="text-xs text-gray-400 mt-1">Adjusts the math multiplier</p>
+            </div>
+            <div className="text-2xl font-bold text-indigo-600 bg-indigo-50 w-10 h-10 flex items-center justify-center rounded-xl">
+                {sensitivity}
+            </div>
+        </div>
+
+        <input 
+            type="range" 
+            min="1" 
+            max="9" 
+            step="1"
+            value={sensitivity}
+            onChange={handleSliderChange}
+            onMouseUp={onRefresh} // Refresh full data when user releases slider
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 mb-2"
+        />
+        <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase">
+            <span>Lenient (x0.2)</span>
+            <span>Strict (x1.8)</span>
+        </div>
+      </div>
+
+      {/* 3. Trust Score B(t) */}
+      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center relative">
+        <div className="absolute top-4 right-4 text-emerald-500 animate-pulse">
+            <Activity size={20} />
+        </div>
+        
+        <h4 className="font-bold text-gray-800 mb-1">Trust Score B(t)</h4>
+        <div className="text-xs text-gray-400 mb-4">Biometric Confidence Level</div>
+        
+        <div className="flex items-end gap-2">
+            <span className="text-4xl font-bold text-emerald-600">{stats.trust_score}</span>
+            <span className="text-sm text-emerald-600 font-medium mb-1.5">/ 100</span>
+        </div>
+        
+        <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+            Inverse of anomaly deviation. A high score means your current rhythm matches your history perfectly.
+        </p>
+      </div>
+
     </div>
   );
 };

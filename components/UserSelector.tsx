@@ -29,19 +29,25 @@ export const UserSelector = ({ currentUser, onUserSelect }: UserSelectorProps) =
     }
   };
 
-const handleAddUser = () => {
-    const trimmedName = newUser.trim();
-    
-    if (trimmedName) {
-      onUserSelect(trimmedName);
-      
-      // FIX: Only add to the dropdown list if it's NOT already there
-      if (!users.includes(trimmedName)) {
-          setUsers(prev => [...prev, trimmedName]);
+const handleAddUser = async () => {
+    if (newUser.trim()) {
+      try {
+          // CALL THE NEW ONBOARD ENDPOINT
+          await fetch('http://127.0.0.1:8000/api/users/onboard', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ username: newUser.trim() })
+          });
+          
+          // Select and Refresh
+          onUserSelect(newUser.trim());
+          setUsers(prev => [...prev, newUser.trim()]);
+          setNewUser("");
+          setIsAdding(false);
+          
+      } catch (e) {
+          console.error("Onboard failed", e);
       }
-      
-      setNewUser("");
-      setIsAdding(false);
     }
   };
 
